@@ -13,7 +13,7 @@ def criar_tabelas():
     conn = conectar_bd()
     cursor = conn.cursor()
     
-    # Tabela de Estoque de Ingredientes (com preço de custo atualizável)
+    # Tabela de Estoque de Ingredientes
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS estoque (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,6 +22,13 @@ def criar_tabelas():
             preco_custo REAL DEFAULT 0.0
         )
     """)
+    
+    # 🔥 CORREÇÃO: Força a criação da coluna se o banco antigo já existir
+    try:
+        cursor.execute("ALTER TABLE estoque ADD COLUMN preco_custo REAL DEFAULT 0.0")
+    except sqlite3.OperationalError:
+        # Se a coluna já existir, o SQLite joga um erro e nós apenas ignoramos
+        pass
     
     # Tabela de Vendas
     cursor.execute("""
@@ -35,12 +42,13 @@ def criar_tabelas():
     conn.commit()
     conn.close()
 
+# Inicializa o banco de dados
 criar_tabelas()
 
 # =====================================================================
-# 2. DICIONÁRIO DE INGREDIENTES EM MASSA (Valores de mercado por unidade/medida)
+# 2. DICIONÁRIO DE INGREDIENTES EM MASSA (Valores de mercado reais)
 # =====================================================================
-# Lista baseada em custos médios reais por porção utilizada no lanche
+# Lista baseada em custos médios reais por porção/unidade utilizada no lanche
 INGREDIENTES_PADRAO = {
     "pao de hamburguer (unid)": {"qtd": 50.0, "custo": 0.80},
     "bife de hamburguer 120g (unid)": {"qtd": 40.0, "custo": 2.20},
@@ -62,7 +70,6 @@ INGREDIENTES_PADRAO = {
 # =====================================================================
 # 3. DICIONÁRIO DE RECEITAS (Fórmula do Lanche)
 # =====================================================================
-# Mapeados de acordo com os novos nomes padronizados
 RECEITAS = {
     "X-Salada": {
         "pao de hamburguer (unid)": 1,
@@ -146,7 +153,8 @@ with aba_vendas:
             st.success(f"✔️ Venda de {lanche_selecionado} realizada com sucesso! Estoque atualizado.")
             
         conn.close()
-        st.rerun
+        # 🔥 CORREÇÃO: Adicionado os parênteses obrigatórios para recarregar a tela
+        st.rerun()
 
 # ---------------------------------------------------------------------
 # ABA 2: CONTROLE DE ESTOQUE (ADICIONAR INGREDIENTES E CARGA EM MASSA)
@@ -195,7 +203,7 @@ with aba_estoque:
                 """, (novo_item, qtd_item, custo_item))
                 conn.commit()
                 conn.close()
-                st.success(f"Estoque atualizado: {novo_item}")
+                st.success(f"Estoque actualizado: {novo_item}")
                 st.rerun()
             else:
                 st.warning("Digite o nome do ingrediente.")
@@ -204,7 +212,7 @@ with aba_estoque:
         st.subheader("Posição Atual do Estoque")
         conn = conectar_bd()
         df_estoque = pd.read_sql_query("""
-            SELECT ingrediente AS Ingrediente, 
+            SELECT ingrediente AS [Ingrediente], 
                    quantidade AS [Qtd em Estoque], 
                    'R$ ' || PRINTF('%.2f', preco_custo) AS [Custo Unitário] 
             FROM estoque
